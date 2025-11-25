@@ -9,6 +9,7 @@
     tools:context=".TestVideoActivity">
 
     <FrameLayout
+        android:id="@+id/fl_video_container"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toTopOf="@+id/fl_banner"
@@ -21,10 +22,19 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scaleType="matrix"  />
+
         <WebView
             android:id="@+id/webview"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <!-- ✅ WebView 썸네일 가림용 오버레이 -->
+        <View
+            android:id="@+id/webviewOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
             android:visibility="gone" />
 
     </FrameLayout>
@@ -209,6 +219,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
+    <!-- ✅ 프로그레스 (ll_error보다 아래에 위치해야 에러 시 가려짐) -->
     <LinearLayout
         android:id="@+id/ll_progress"
         android:layout_width="0dp"
@@ -228,16 +239,17 @@
             android:indeterminateTint="#ffffff" />
     </LinearLayout>
 
-    <!-- ✅ 에러 메시지 표시 (새로 추가) -->
+    <!-- ✅ 에러 메시지 (프로그레스보다 위에 표시) -->
     <LinearLayout
         android:id="@+id/ll_error"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:gravity="center"
-        android:background="#CC000000"
+        android:background="#000000"
         android:orientation="vertical"
         android:padding="32dp"
         android:visibility="gone"
+        android:elevation="10dp"
         app:layout_constraintBottom_toTopOf="@+id/fl_banner"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

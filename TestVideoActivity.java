@@ -1,78 +1,3 @@
-package com.boolint.camlocation;
-
-import static android.view.View.GONE;
-import static android.view.View.VISIBLE;
-
-import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.pm.ActivityInfo;
-import android.content.res.Configuration;
-import android.database.ContentObserver;
-import android.graphics.Bitmap;
-import android.graphics.Matrix;
-import android.graphics.Point;
-import android.graphics.RectF;
-import android.graphics.SurfaceTexture;
-import android.hardware.SensorManager;
-import android.net.Uri;
-import android.net.http.SslError;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
-import android.provider.Settings;
-import android.util.Log;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
-import android.view.OrientationEventListener;
-import android.view.ScaleGestureDetector;
-import android.view.Surface;
-import android.view.TextureView;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowManager;
-import android.webkit.JsResult;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import androidx.activity.EdgeToEdge;
-import androidx.annotation.DrawableRes;
-import androidx.annotation.OptIn;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.browser.customtabs.CustomTabsIntent;
-import androidx.cardview.widget.CardView;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.MimeTypes;
-import androidx.media3.common.PlaybackException;
-import androidx.media3.common.Player;
-import androidx.media3.common.VideoSize;
-import androidx.media3.common.util.UnstableApi;
-import androidx.media3.exoplayer.ExoPlayer;
-
-import com.boolint.camlocation.bean.CctvItemVo;
-import com.boolint.camlocation.helper.ADHelper;
-import com.boolint.camlocation.helper.CctvApiHelper;
-import com.boolint.camlocation.helper.DaeguCctvVideoOpenApiHelper;
-import com.boolint.camlocation.helper.DeviceHelper;
-import com.boolint.camlocation.helper.GgCctvVideoOpenApiHelper;
-import com.boolint.camlocation.helper.JejuCctvVideoOpenApiHelper;
-import com.boolint.camlocation.helper.SeoulCctvVideoOpenApiHelper;
-
-
 public class TestVideoActivity extends AppCompatActivity {
 
     private static final String TAG = "ttt";
@@ -131,6 +56,7 @@ public class TestVideoActivity extends AppCompatActivity {
     LinearLayout llError;  // ✅ 추가
     TextView tvErrorMessage;  // ✅ 추가
     TextView tvErrorDetail;  // ✅ 추가
+    private View webviewOverlay;
 
     private Handler webViewTimeoutHandler;
     private Runnable webViewTimeoutRunnable;
@@ -162,7 +88,9 @@ public class TestVideoActivity extends AppCompatActivity {
     private ExoPlayer exoPlayer;
     private CctvApiHelper apiHelper;
 
-    // ... 나머지 변수들 ...
+    private boolean isVideoPlaying = false;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -195,6 +123,8 @@ public class TestVideoActivity extends AppCompatActivity {
 
         textureView = findViewById(R.id.textureView);
         webView = findViewById(R.id.webview);
+        webviewOverlay = findViewById(R.id.webviewOverlay);  // ✅ 추가
+
         layoutLeft = findViewById(R.id.layoutLeft);
         btnLeftIcon = findViewById(R.id.btnLeftIcon);
         btnLeftLabel = findViewById(R.id.btnLeftLabel);
@@ -309,6 +239,7 @@ public class TestVideoActivity extends AppCompatActivity {
                 }
 
                 if (state == Player.STATE_READY) {
+                    isVideoPlaying = true;  // ✅ 추가
                     textureView.setVisibility(VISIBLE);
                     // ✅ 실제 재생 준비 완료 시 숨김
                     hideProgressWithAnimation();
@@ -325,6 +256,7 @@ public class TestVideoActivity extends AppCompatActivity {
             public void onIsPlayingChanged(boolean isPlaying) {
                 // ✅ 추가: 실제 재생이 시작되면 확실히 숨김
                 if (isPlaying) {
+                    isVideoPlaying = true;  // ✅ 추가
                     hideProgressWithAnimation();
                     // ✅ 에러도 숨김
                     hideError();
@@ -497,14 +429,23 @@ public class TestVideoActivity extends AppCompatActivity {
     /**
      * ✅ WebView 타임아웃 시작
      */
+    /**
+     * ✅ WebView 타임아웃 시작
+     */
     private void startWebViewTimeout() {
         cancelWebViewTimeout();
 
         webViewTimeoutRunnable = () -> {
-            if (llProgress.getVisibility() == VISIBLE) {
-                Log.d(TAG, "⚠️ Timeout: Hiding progress after 10 seconds");
-                hideProgressWithAnimation();
-                // ✅ Toast 대신 화면 에러 표시
+            // ✅ 이미 재생 중이면 무시
+            if (isVideoPlaying) {
+                Log.d(TAG, "⏱️ Timeout ignored - video already playing");
+                return;
+            }
+            // 아직 로딩 중이면 (프로그레스가 보이거나 오버레이가 보이면)
+            if (llProgress.getVisibility() == VISIBLE ||
+                    (webviewOverlay != null && webviewOverlay.getVisibility() == VISIBLE)) {
+
+                Log.d(TAG, "⚠️ WebView Timeout");
                 showError("영상 로드 시간 초과", "스트리밍 서버 응답 없음");
             }
         };
@@ -527,13 +468,35 @@ public class TestVideoActivity extends AppCompatActivity {
         public void onVideoPlaying() {
             runOnUiThread(() -> {
                 Log.d(TAG, "✅ WebView: Video actually playing - hiding progress");
+
+                // ✅ 재생 상태 플래그 설정
+                isVideoPlaying = true;
+
                 // 타임아웃 취소
                 cancelWebViewTimeout();
 
-                hideProgressWithAnimation();
                 // ✅ 에러도 숨김
                 hideError();
+
+                hideProgressWithAnimation();
+                hideWebViewOverlay();
             });
+        }
+    }
+
+    /**
+     * ✅ WebView 오버레이 페이드 아웃
+     */
+    private void hideWebViewOverlay() {
+        if (webviewOverlay != null && webviewOverlay.getVisibility() == VISIBLE) {
+            webviewOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(150)
+                    .withEndAction(() -> {
+                        webviewOverlay.setVisibility(GONE);
+                        webviewOverlay.setAlpha(1f);
+                    })
+                    .start();
         }
     }
 
@@ -579,12 +542,12 @@ public class TestVideoActivity extends AppCompatActivity {
     private void injectAllScripts(WebView view) {
         String js =
                 "javascript:(function(){ " +
-                        // CSS (기존 코드 유지)
+                        // ✅ 더 강력한 CSS - 플레이 버튼 오버레이까지 완전 숨김
                         "if(!document.getElementById('cctv-base-style')){ " +
                         "var s=document.createElement('style');" +
                         "s.id='cctv-base-style';" +
                         "s.innerHTML=`" +
-                        "html,body{margin:0!important;padding:0!important;background:#000!important;overflow:hidden!important;width:100vw!important;height:100vh!important;}" +
+                        "html,body{margin:0!important;padding:0!important;background:#000!important;overflow:hidden!important;}" +
                         "video{" +
                         "display:block!important;" +
                         "width:100vw!important;" +
@@ -593,115 +556,43 @@ public class TestVideoActivity extends AppCompatActivity {
                         "background:black!important;" +
                         "position:fixed!important;" +
                         "top:0!important;left:0!important;" +
-                        "margin:0!important;padding:0!important;" +
-                        "transform:none!important;" +
                         "z-index:9999!important;" +
-                        "pointer-events:none!important;" +
-                        "opacity:1!important;" +
-                        "visibility:visible!important;" +
                         "}" +
-                        "video::-webkit-media-controls-panel,video::-webkit-media-controls-play-button,video::-webkit-media-controls-start-playback-button,video::-webkit-media-controls-overlay-play-button,video::-webkit-media-controls-enclosure,video::-webkit-media-controls{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;}" +
-                        "*[poster]{background:transparent!important;}" +
-                        "video[poster]{background:black!important;}" +
+                        // ✅ 모든 미디어 컨트롤 + 오버레이 완전 숨김
+                        "video::-webkit-media-controls{display:none!important;-webkit-appearance:none!important;}" +
+                        "video::-webkit-media-controls-panel{display:none!important;-webkit-appearance:none!important;}" +
+                        "video::-webkit-media-controls-play-button{display:none!important;-webkit-appearance:none!important;}" +
+                        "video::-webkit-media-controls-start-playback-button{display:none!important;-webkit-appearance:none!important;opacity:0!important;pointer-events:none!important;width:0!important;height:0!important;}" +
+                        "video::-webkit-media-controls-overlay-play-button{display:none!important;-webkit-appearance:none!important;opacity:0!important;pointer-events:none!important;width:0!important;height:0!important;}" +
+                        "video::-webkit-media-controls-enclosure{display:none!important;-webkit-appearance:none!important;}" +
+                        "video::-webkit-media-controls-overlay-enclosure{display:none!important;-webkit-appearance:none!important;opacity:0!important;}" +
+                        // ✅ poster 관련
+                        "*[poster],video[poster]{background:black!important;}" +
                         "`;" +
-                        "document.head.appendChild(s);" +
+                        "(document.head||document.documentElement).appendChild(s);" +
                         "}" +
 
-                        // Video 설정 + ✅ 실제 재생 감지 추가
+                        // ✅ Video 강제 설정
                         "document.querySelectorAll('video').forEach(function(v){ " +
                         "v.controls=false;" +
                         "v.removeAttribute('controls');" +
                         "v.removeAttribute('poster');" +
                         "v.poster='';" +
-                        "v.setAttribute('poster', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');" +
-                        "v.style.cssText='display:block!important;width:100vw!important;height:100vh!important;position:fixed!important;top:0!important;left:0!important;object-fit:contain!important;background:black!important;margin:0!important;padding:0!important;z-index:9999!important;';" +
                         "v.autoplay=true;" +
                         "v.muted=true;" +
                         "v.playsInline=true;" +
-                        "v.webkitPlaysInline=true;" +
-                        "v.preload='auto';" +
-                        "v.setAttribute('preload', 'auto');" +
-
-                        // ✅ 실제 재생 시작 감지
+                        "v.setAttribute('playsinline','');" +
+                        "v.setAttribute('webkit-playsinline','');" +
+                        // ✅ 강제 play 시도
+                        "v.play().catch(function(e){console.log('play error:',e);});" +
+                        // playing 이벤트
                         "if(!v.hasPlayingListener){" +
                         "v.hasPlayingListener=true;" +
                         "v.addEventListener('playing', function(){" +
-                        "console.log('Video actually playing!');" +
-                        "window.AndroidBridge && window.AndroidBridge.onVideoPlaying();" +  // Java 콜백
-                        "}, {once: true});" +  // 한 번만 실행
-                        "}" +
-
-                        // 버퍼링 최적화 이벤트 (기존 코드)
-                        "if(!v.hasBufferingListeners){" +
-                        "v.hasBufferingListeners=true;" +
-                        "v.addEventListener('stalled', function(){" +
-                        "setTimeout(function(){" +
-                        "if(v.paused){v.play().catch(function(){});}" +
-                        "}, 500);" +
-                        "});" +
-                        "v.addEventListener('suspend', function(){" +
-                        "if(v.paused){v.play().catch(function(){});}" +
-                        "});" +
-                        "v.addEventListener('waiting', function(){" +
-                        "setTimeout(function(){" +
-                        "if(v.paused && v.readyState >= 2){v.play().catch(function(){});}" +
-                        "}, 500);" +
-                        "});" +
-                        "v.addEventListener('loadstart', function(){" +
-                        "v.removeAttribute('poster');v.poster='';v.controls=false;v.removeAttribute('controls');" +
-                        "});" +
-                        "v.addEventListener('loadedmetadata', function(){" +
-                        "v.removeAttribute('poster');v.poster='';v.controls=false;v.removeAttribute('controls');" +
-                        "v.style.cssText='display:block!important;width:100vw!important;height:100vh!important;position:fixed!important;top:0!important;left:0!important;object-fit:contain!important;background:black!important;margin:0!important;padding:0!important;z-index:9999!important;';" +
-                        "});" +
-                        "v.addEventListener('canplay', function(){" +
-                        "v.controls=false;v.removeAttribute('controls');" +
-                        "if(v.paused){v.play().catch(function(){});}" +
-                        "});" +
-                        "}" +
-
-                        "if(v.paused && v.readyState >= 2){" +
-                        "v.play().catch(function(){});" +
-                        "}" +
-                        "});" +
-
-                        // MutationObserver (기존 코드 유지)
-                        "if(!window.videoObserverInstalled){" +
-                        "window.videoObserverInstalled=true;" +
-                        "var observer=new MutationObserver(function(mutations){" +
-                        "mutations.forEach(function(mutation){" +
-                        "mutation.addedNodes.forEach(function(node){" +
-                        "if(node.tagName==='VIDEO'){" +
-                        "node.removeAttribute('poster');node.poster='';node.controls=false;node.removeAttribute('controls');" +
-                        "node.muted=true;node.autoplay=true;" +
-                        "node.style.cssText='display:block!important;width:100vw!important;height:100vh!important;position:fixed!important;top:0!important;left:0!important;object-fit:contain!important;background:black!important;z-index:9999!important;';" +
-
-                        // ✅ 새로 추가된 video에도 playing 이벤트 추가
-                        "node.addEventListener('playing', function(){" +
                         "window.AndroidBridge && window.AndroidBridge.onVideoPlaying();" +
                         "}, {once: true});" +
-
-                        "node.play().catch(function(){});" +
-                        "}" +
-                        "if(node.querySelectorAll){" +
-                        "node.querySelectorAll('video').forEach(function(v){" +
-                        "v.removeAttribute('poster');v.poster='';v.controls=false;v.removeAttribute('controls');" +
-                        "v.muted=true;v.autoplay=true;" +
-                        "v.style.cssText='display:block!important;width:100vw!important;height:100vh!important;position:fixed!important;top:0!important;left:0!important;object-fit:contain!important;background:black!important;z-index:9999!important;';" +
-
-                        // ✅ 동적 추가된 video에도 playing 이벤트
-                        "v.addEventListener('playing', function(){" +
-                        "window.AndroidBridge && window.AndroidBridge.onVideoPlaying();" +
-                        "}, {once: true});" +
-
-                        "v.play().catch(function(){});" +
-                        "});" +
                         "}" +
                         "});" +
-                        "});" +
-                        "});" +
-                        "observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['poster','controls']});" +
-                        "}" +
                         "})();";
 
         view.evaluateJavascript(js, null);
@@ -796,6 +687,9 @@ public class TestVideoActivity extends AppCompatActivity {
     }
 
     void updateCctvVideo() {
+        // ✅ 재생 상태 초기화
+        isVideoPlaying = false;
+
         // ✅ 에러 메시지 숨김 (새 영상 로드 시)
         hideError();
 
@@ -831,26 +725,33 @@ public class TestVideoActivity extends AppCompatActivity {
         // WebView 정리
         if (webView != null) {
             webView.stopLoading();
-            webView.loadUrl("about:blank");
+            // ✅ about:blank 제거 - 썸네일 깜박임 원인
+            // webView.loadUrl("about:blank");
 
-            // ✅ 타임아웃 취소
             cancelWebViewTimeout();
 
-            // 재로드 시 WebView 초기화
             if (!isFirstWebViewLoad && currentPlayerType == PlayerType.WEBVIEW) {
                 webView.clearCache(true);
                 webView.clearHistory();
             }
         }
+
+        // ✅ 에러 화면도 숨김
+        hideError();
     }
 
     private void switchPlayerVisibility(PlayerType playerType) {
         if (playerType == PlayerType.WEBVIEW) {
             textureView.setVisibility(GONE);
             webView.setVisibility(VISIBLE);
+
+            // ✅ 오버레이로 WebView 가림 (썸네일 방지)
+            webviewOverlay.setAlpha(1f);
+            webviewOverlay.setVisibility(VISIBLE);
         } else {
             textureView.setVisibility(View.INVISIBLE);
             webView.setVisibility(GONE);
+            webviewOverlay.setVisibility(GONE);
         }
     }
 
@@ -1142,7 +1043,20 @@ public class TestVideoActivity extends AppCompatActivity {
     /**
      * ✅ 에러 메시지 표시 (애니메이션)
      */
+    /**
+     * ✅ 에러 메시지 표시
+     */
     private void showError(String message, String detail) {
+        // 프로그레스 즉시 숨김
+        llProgress.clearAnimation();
+        llProgress.setVisibility(GONE);
+
+        // 오버레이도 숨김
+        if (webviewOverlay != null) {
+            webviewOverlay.clearAnimation();
+            webviewOverlay.setVisibility(GONE);
+        }
+
         tvErrorMessage.setText(message);
         tvErrorDetail.setText(detail);
 
@@ -1168,11 +1082,16 @@ public class TestVideoActivity extends AppCompatActivity {
     }
 
     private void hideProgressWithAnimation() {
-        llProgress.animate()
-                .alpha(0f)
-                .setDuration(500)
-                .withEndAction(() -> llProgress.setVisibility(GONE));
-        llProgress.setVisibility(GONE);
+        if (llProgress.getVisibility() == VISIBLE) {
+            llProgress.animate()
+                    .alpha(0f)
+                    .setDuration(300)
+                    .withEndAction(() -> {
+                        llProgress.setVisibility(GONE);
+                        llProgress.setAlpha(1f);  // ✅ 다음 사용을 위해 복원
+                    })
+                    .start();
+        }
     }
 
     public void setFavorImage(boolean favor) {
@@ -1214,7 +1133,6 @@ public class TestVideoActivity extends AppCompatActivity {
         }
     }
 
-    // ... 나머지 메서드들 (방향 전환, UI 업데이트 등) 동일하게 유지 ...
 
     @OptIn(markerClass = UnstableApi.class)
     private void applyVideoFit() {

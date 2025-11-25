@@ -9,7 +9,6 @@ public class TestVideoActivity extends AppCompatActivity {
     }
 
     private PlayerType currentPlayerType = PlayerType.EXOPLAYER;
-    private boolean isFirstWebViewLoad = true;
 
     private boolean isLandscape = false;
     private boolean isLockedLandscape = false;
@@ -37,7 +36,6 @@ public class TestVideoActivity extends AppCompatActivity {
     private GestureDetector gestureDetector;
     private Matrix matrix = new Matrix();
     private float scaleFactor = 1.0f;
-    private float focusX = 0f, focusY = 0f;
     MediaItem mediaItem;
 
     TextView tvTitle;
@@ -227,7 +225,6 @@ public class TestVideoActivity extends AppCompatActivity {
                 currentVideoHeight = videoSize.height;
                 fitVideoToView(videoSize);
                 textureView.setVisibility(VISIBLE);
-                //hideProgressWithAnimation();
             }
 
             @Override
@@ -316,6 +313,7 @@ public class TestVideoActivity extends AppCompatActivity {
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setBackgroundColor(0xFF000000);
+
         // ✅ JavaScript Bridge 추가
         webView.addJavascriptInterface(new WebAppInterface(), "AndroidBridge");
 
@@ -426,9 +424,7 @@ public class TestVideoActivity extends AppCompatActivity {
             }
         });
     }
-    /**
-     * ✅ WebView 타임아웃 시작
-     */
+
     /**
      * ✅ WebView 타임아웃 시작
      */
@@ -730,10 +726,6 @@ public class TestVideoActivity extends AppCompatActivity {
 
             cancelWebViewTimeout();
 
-            if (!isFirstWebViewLoad && currentPlayerType == PlayerType.WEBVIEW) {
-                webView.clearCache(true);
-                webView.clearHistory();
-            }
         }
 
         // ✅ 에러 화면도 숨김
@@ -989,13 +981,6 @@ public class TestVideoActivity extends AppCompatActivity {
             if (streamUrl != null) {
                 Log.d(TAG, "🌐 WebView 재생: " + streamUrl);
 
-                // 재로드 시 WebView 초기화
-                if (!isFirstWebViewLoad) {
-                    webView.clearCache(true);
-                    webView.clearHistory();
-                }
-                isFirstWebViewLoad = false;
-
                 // WebView로 스트림 재생
                 webView.loadUrl(streamUrl);
                 webView.setVisibility(View.VISIBLE);
@@ -1120,7 +1105,6 @@ public class TestVideoActivity extends AppCompatActivity {
     private void navigateLeft() {
         if (navigator != null && navigator.canMoveLeft()) {
             mCctvItem = navigator.moveLeft();
-            isFirstWebViewLoad = true; // 네비게이션 시 초기화
             updateCctvVideo();
         }
     }
@@ -1128,7 +1112,6 @@ public class TestVideoActivity extends AppCompatActivity {
     private void navigateRight() {
         if (navigator != null && navigator.canMoveRight()) {
             mCctvItem = navigator.moveRight();
-            isFirstWebViewLoad = true; // 네비게이션 시 초기화
             updateCctvVideo();
         }
     }
